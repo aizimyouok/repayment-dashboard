@@ -458,8 +458,8 @@ class GoogleSheetsDataService {
     }
 
     // 4. 기본값 (실제 운영시에는 여기에 실제 시트 ID 입력)
-    const defaultSheetId = 'YOUR_SHEET_ID_HERE'; // 👈 여기에 실제 시트 ID 입력하면 자동 연결
-    console.log('⚙️ 기본 시트 ID 사용');
+    const defaultSheetId = '2PACX-1vTcHjc9thzEUoZ86YiOyVrB6ayDOVk-FwVstWS_61DdZXNGh9EtzZMG9AABrLLe3J2_DeC1tuhDQlcb'; // 자동 연결용 기본 시트
+    console.log('⚙️ 기본 시트 ID 사용 - 자동 연결');
     return defaultSheetId;
   }
 
