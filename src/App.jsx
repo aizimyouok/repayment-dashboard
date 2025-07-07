@@ -3,8 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cel
 import { Search, Eye, LogOut, RefreshCw, Bell, DollarSign, CheckCircle, Clock, Target, Plus, Edit, Trash2, Upload, Download, Settings, ExternalLink, AlertTriangle } from 'lucide-react';
 import GoogleLogin from './components/GoogleLogin';
 import { googleAuth } from './services/googleAuth';
-import { hybridSheets } from './services/hybridSheets';
-import { googleForms } from './services/googleForms';
+import googleSheetsDataService from './services/googleSheetsData';
 import { formatCurrency, formatPercent, maskSSN, getStatusClass, calculateDday } from './utils/formatters';
 
 function App() {
@@ -48,8 +47,45 @@ function App() {
   const syncWithHybridSheets = async () => {
     setIsSyncing(true);
     try {
-      const data = await hybridSheets.fetchSheetData();
-      setDashboardData(data);
+      // 원시 데이터 가져오기
+      const rawData = await googleSheetsDataService.fetchData();
+      console.log('🔄 원시 데이터:', rawData);
+      
+      // 대시보드용 데이터로 변환
+      const transformedData = googleSheetsDataService.transformDataForDashboard(rawData);
+      console.log('✅ 변환된 데이터:', transformedData);
+      
+      // 대시보드 데이터 구조에 맞게 재구성
+      const dashboardData = {
+        kpi: {
+          totalRequested: transformedData.statistics.totalLoanAmount,
+          totalRepaid: transformedData.statistics.totalRepaid,
+          totalRemaining: transformedData.statistics.totalRemaining,
+          repaymentRate: transformedData.statistics.totalLoanAmount > 0 ? 
+            transformedData.statistics.totalRepaid / transformedData.statistics.totalLoanAmount : 0
+        },
+        individuals: transformedData.records.map(record => ({
+          no: record.id,
+          name: record.borrowerName,
+          ssn: record._original['주민번호'] || record._original['주민번호_앞자리'] || '',
+          phone: record._original['연락처'] || record._original['휴대폰'] || '',
+          joinDate: record._original['입사일'] || '',
+          leaveDate: record._original['퇴사일'] || '',
+          totalAmount: record.loanAmount,
+          repaidAmount: record.repaidAmount,
+          remainingAmount: record.remainingAmount,
+          nextPaymentDate: record.repaymentDate ? 
+            record.repaymentDate.toISOString().split('T')[0] : null,
+          status: record.status,
+          rounds: [] // 상세 회차 정보는 추후 구현
+        })),
+        summary: {
+          totalCount: transformedData.totalRecords,
+          statusDistribution: transformedData.statistics.statusCounts
+        }
+      };
+      
+      setDashboardData(dashboardData);
       setLastSyncTime(new Date());
       addNotification('✅ 실시간 데이터 동기화가 완료되었습니다.', 'success');
     } catch (error) {
@@ -62,7 +98,7 @@ function App() {
 
   // 시트 ID 설정
   const handleSheetSetup = (newSheetId) => {
-    hybridSheets.setSheetId(newSheetId);
+    googleSheetsDataService.setSheetId(newSheetId);
     setSheetId(newSheetId);
     localStorage.setItem('sheetId', newSheetId);
     setShowSetupModal(false);
@@ -77,13 +113,16 @@ function App() {
       
       switch (action) {
         case 'add':
-          result = await googleForms.openAddForm();
+          googleSheetsDataService.openAddForm();
+          result = true;
           break;
         case 'edit':
-          result = await googleForms.openEditForm(person);
+          googleSheetsDataService.openEditForm(person);
+          result = true;
           break;
         case 'delete':
-          result = await googleForms.openDeleteForm(person);
+          googleSheetsDataService.openDeleteForm(person);
+          result = true;
           break;
       }
 
@@ -118,9 +157,41 @@ function App() {
           
           if (savedSheetId) {
             setSheetId(savedSheetId);
-            hybridSheets.setSheetId(savedSheetId);
-            const data = await hybridSheets.fetchSheetData();
-            setDashboardData(data);
+            googleSheetsDataService.setSheetId(savedSheetId);
+            const rawData = await googleSheetsDataService.fetchData();
+            const transformedData = googleSheetsDataService.transformDataForDashboard(rawData);
+            
+            // 대시보드 데이터 구조에 맞게 재구성
+            const dashboardData = {
+              kpi: {
+                totalRequested: transformedData.statistics.totalLoanAmount,
+                totalRepaid: transformedData.statistics.totalRepaid,
+                totalRemaining: transformedData.statistics.totalRemaining,
+                repaymentRate: transformedData.statistics.totalLoanAmount > 0 ? 
+                  transformedData.statistics.totalRepaid / transformedData.statistics.totalLoanAmount : 0
+              },
+              individuals: transformedData.records.map(record => ({
+                no: record.id,
+                name: record.borrowerName,
+                ssn: record._original['주민번호'] || record._original['주민번호_앞자리'] || '',
+                phone: record._original['연락처'] || record._original['휴대폰'] || '',
+                joinDate: record._original['입사일'] || '',
+                leaveDate: record._original['퇴사일'] || '',
+                totalAmount: record.loanAmount,
+                repaidAmount: record.repaidAmount,
+                remainingAmount: record.remainingAmount,
+                nextPaymentDate: record.repaymentDate ? 
+                  record.repaymentDate.toISOString().split('T')[0] : null,
+                status: record.status,
+                rounds: []
+              })),
+              summary: {
+                totalCount: transformedData.totalRecords,
+                statusDistribution: transformedData.statistics.statusCounts
+              }
+            };
+            
+            setDashboardData(dashboardData);
             setLastSyncTime(new Date());
           } else {
             setShowSetupModal(true);
@@ -144,10 +215,42 @@ function App() {
     const savedSheetId = localStorage.getItem('sheetId');
     if (savedSheetId) {
       setSheetId(savedSheetId);
-      hybridSheets.setSheetId(savedSheetId);
+      googleSheetsDataService.setSheetId(savedSheetId);
       try {
-        const data = await hybridSheets.fetchSheetData();
-        setDashboardData(data);
+        const rawData = await googleSheetsDataService.fetchData();
+        const transformedData = googleSheetsDataService.transformDataForDashboard(rawData);
+        
+        // 대시보드 데이터 구조에 맞게 재구성
+        const dashboardData = {
+          kpi: {
+            totalRequested: transformedData.statistics.totalLoanAmount,
+            totalRepaid: transformedData.statistics.totalRepaid,
+            totalRemaining: transformedData.statistics.totalRemaining,
+            repaymentRate: transformedData.statistics.totalLoanAmount > 0 ? 
+              transformedData.statistics.totalRepaid / transformedData.statistics.totalLoanAmount : 0
+          },
+          individuals: transformedData.records.map(record => ({
+            no: record.id,
+            name: record.borrowerName,
+            ssn: record._original['주민번호'] || record._original['주민번호_앞자리'] || '',
+            phone: record._original['연락처'] || record._original['휴대폰'] || '',
+            joinDate: record._original['입사일'] || '',
+            leaveDate: record._original['퇴사일'] || '',
+            totalAmount: record.loanAmount,
+            repaidAmount: record.repaidAmount,
+            remainingAmount: record.remainingAmount,
+            nextPaymentDate: record.repaymentDate ? 
+              record.repaymentDate.toISOString().split('T')[0] : null,
+            status: record.status,
+            rounds: []
+          })),
+          summary: {
+            totalCount: transformedData.totalRecords,
+            statusDistribution: transformedData.statistics.statusCounts
+          }
+        };
+        
+        setDashboardData(dashboardData);
         setLastSyncTime(new Date());
       } catch (error) {
         console.error('데이터 로드 실패:', error);
