@@ -3,7 +3,7 @@
   "private": false,
   "version": "1.0.0",
   "type": "module",
-  "homepage": "https://[username].github.io/repayment-dashboard",
+  "homepage": "https://aizimyouok.github.io/repayment-dashboard",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
