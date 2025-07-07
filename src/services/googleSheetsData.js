@@ -6,8 +6,13 @@
 
 class GoogleSheetsDataService {
   constructor() {
-    // Google Sheets CSV 공개 링크 (시트 ID를 실제 값으로 교체 필요)
-    this.SHEET_ID = process.env.VITE_GOOGLE_SHEET_ID || 'YOUR_SHEET_ID_HERE';
+    // 기본 시트 ID 설정 (실제 사용할 시트 ID로 변경하세요)
+    // 여러 방법으로 시트 ID 설정 가능:
+    // 1. 환경변수에서 가져오기
+    // 2. URL 파라미터에서 가져오기  
+    // 3. localStorage에서 가져오기
+    // 4. 기본값 사용
+    this.SHEET_ID = this.getSheetId();
     this.CSV_URL = `https://docs.google.com/spreadsheets/d/${this.SHEET_ID}/export?format=csv&gid=0`;
     
     // Google Forms 링크들 (나중에 설정 예정)
@@ -424,13 +429,67 @@ class GoogleSheetsDataService {
   }
 
   /**
-   * 시트 ID 설정 (환경변수 또는 직접 설정)
+   * 다양한 소스에서 시트 ID를 가져옵니다
+   * 우선순위: URL 파라미터 → 환경변수 → localStorage → 기본값
+   * @returns {string} 시트 ID
+   */
+  getSheetId() {
+    // 1. URL 파라미터에서 확인 (예: ?sheetId=abc123)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlSheetId = urlParams.get('sheetId');
+    if (urlSheetId) {
+      console.log('📋 URL 파라미터에서 시트 ID 가져옴:', urlSheetId);
+      localStorage.setItem('sheetId', urlSheetId); // 저장해둠
+      return urlSheetId;
+    }
+
+    // 2. 환경변수에서 확인
+    const envSheetId = import.meta.env.VITE_GOOGLE_SHEET_ID;
+    if (envSheetId && envSheetId !== 'YOUR_SHEET_ID_HERE') {
+      console.log('🔧 환경변수에서 시트 ID 가져옴');
+      return envSheetId;
+    }
+
+    // 3. localStorage에서 확인 (이전에 설정한 값)
+    const savedSheetId = localStorage.getItem('sheetId');
+    if (savedSheetId && savedSheetId !== 'YOUR_SHEET_ID_HERE') {
+      console.log('💾 localStorage에서 시트 ID 가져옴');
+      return savedSheetId;
+    }
+
+    // 4. 기본값 (실제 운영시에는 여기에 실제 시트 ID 입력)
+    const defaultSheetId = 'YOUR_SHEET_ID_HERE'; // 👈 여기에 실제 시트 ID 입력하면 자동 연결
+    console.log('⚙️ 기본 시트 ID 사용');
+    return defaultSheetId;
+  }
+
+  /**
+   * 시트 ID 설정 및 저장
    * @param {string} sheetId - Google Sheets ID
    */
   setSheetId(sheetId) {
     this.SHEET_ID = sheetId;
     this.CSV_URL = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
-    console.log('✅ Google Sheets ID 설정 완료:', sheetId);
+    localStorage.setItem('sheetId', sheetId); // 자동 저장
+    console.log('✅ Google Sheets ID 설정 및 저장 완료:', sheetId);
+  }
+
+  /**
+   * 시트 ID가 유효한지 확인
+   * @returns {boolean} 유효한 시트 ID인지 여부
+   */
+  isValidSheetId() {
+    return this.SHEET_ID && 
+           this.SHEET_ID !== 'YOUR_SHEET_ID_HERE' && 
+           this.SHEET_ID.length > 10;
+  }
+
+  /**
+   * 현재 설정된 시트 ID 반환
+   * @returns {string} 현재 시트 ID
+   */
+  getCurrentSheetId() {
+    return this.SHEET_ID;
   }
 
   /**

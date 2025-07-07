@@ -155,45 +155,53 @@ function App() {
         if (currentUser) {
           setUser(currentUser);
           
-          if (savedSheetId) {
-            setSheetId(savedSheetId);
-            googleSheetsDataService.setSheetId(savedSheetId);
-            const rawData = await googleSheetsDataService.fetchData();
-            const transformedData = googleSheetsDataService.transformDataForDashboard(rawData);
-            
-            // 대시보드 데이터 구조에 맞게 재구성
-            const dashboardData = {
-              kpi: {
-                totalRequested: transformedData.statistics.totalLoanAmount,
-                totalRepaid: transformedData.statistics.totalRepaid,
-                totalRemaining: transformedData.statistics.totalRemaining,
-                repaymentRate: transformedData.statistics.totalLoanAmount > 0 ? 
-                  transformedData.statistics.totalRepaid / transformedData.statistics.totalLoanAmount : 0
-              },
-              individuals: transformedData.records.map(record => ({
-                no: record.id,
-                name: record.borrowerName,
-                ssn: record._original['주민번호'] || record._original['주민번호_앞자리'] || '',
-                phone: record._original['연락처'] || record._original['휴대폰'] || '',
-                joinDate: record._original['입사일'] || '',
-                leaveDate: record._original['퇴사일'] || '',
-                totalAmount: record.loanAmount,
-                repaidAmount: record.repaidAmount,
-                remainingAmount: record.remainingAmount,
-                nextPaymentDate: record.repaymentDate ? 
-                  record.repaymentDate.toISOString().split('T')[0] : null,
-                status: record.status,
-                rounds: []
-              })),
-              summary: {
-                totalCount: transformedData.totalRecords,
-                statusDistribution: transformedData.statistics.statusCounts
-              }
-            };
-            
-            setDashboardData(dashboardData);
-            setLastSyncTime(new Date());
+          // 시트 ID 확인 및 자동 연결
+          if (googleSheetsDataService.isValidSheetId()) {
+            const currentSheetId = googleSheetsDataService.getCurrentSheetId();
+            setSheetId(currentSheetId);
+            try {
+              const rawData = await googleSheetsDataService.fetchData();
+              const transformedData = googleSheetsDataService.transformDataForDashboard(rawData);
+              
+              // 대시보드 데이터 구조에 맞게 재구성
+              const dashboardData = {
+                kpi: {
+                  totalRequested: transformedData.statistics.totalLoanAmount,
+                  totalRepaid: transformedData.statistics.totalRepaid,
+                  totalRemaining: transformedData.statistics.totalRemaining,
+                  repaymentRate: transformedData.statistics.totalLoanAmount > 0 ? 
+                    transformedData.statistics.totalRepaid / transformedData.statistics.totalLoanAmount : 0
+                },
+                individuals: transformedData.records.map(record => ({
+                  no: record.id,
+                  name: record.borrowerName,
+                  ssn: record._original['주민번호'] || record._original['주민번호_앞자리'] || '',
+                  phone: record._original['연락처'] || record._original['휴대폰'] || '',
+                  joinDate: record._original['입사일'] || '',
+                  leaveDate: record._original['퇴사일'] || '',
+                  totalAmount: record.loanAmount,
+                  repaidAmount: record.repaidAmount,
+                  remainingAmount: record.remainingAmount,
+                  nextPaymentDate: record.repaymentDate ? 
+                    record.repaymentDate.toISOString().split('T')[0] : null,
+                  status: record.status,
+                  rounds: []
+                })),
+                summary: {
+                  totalCount: transformedData.totalRecords,
+                  statusDistribution: transformedData.statistics.statusCounts
+                }
+              };
+              
+              setDashboardData(dashboardData);
+              setLastSyncTime(new Date());
+              addNotification('🎉 Google Sheets 자동 연결 완료!', 'success');
+            } catch (error) {
+              console.error('자동 데이터 로드 실패:', error);
+              setShowSetupModal(true);
+            }
           } else {
+            console.log('⚙️ 시트 ID가 설정되지 않음 - 설정 모달 표시');
             setShowSetupModal(true);
           }
         }
@@ -212,10 +220,10 @@ function App() {
     setUser(userData);
     addNotification(`🎉 ${userData.name}님 환영합니다!`, 'success');
     
-    const savedSheetId = localStorage.getItem('sheetId');
-    if (savedSheetId) {
-      setSheetId(savedSheetId);
-      googleSheetsDataService.setSheetId(savedSheetId);
+    // 시트 ID 자동 확인 및 연결
+    if (googleSheetsDataService.isValidSheetId()) {
+      const currentSheetId = googleSheetsDataService.getCurrentSheetId();
+      setSheetId(currentSheetId);
       try {
         const rawData = await googleSheetsDataService.fetchData();
         const transformedData = googleSheetsDataService.transformDataForDashboard(rawData);
@@ -252,11 +260,14 @@ function App() {
         
         setDashboardData(dashboardData);
         setLastSyncTime(new Date());
+        addNotification('🔗 Google Sheets 자동 연결 완료!', 'success');
       } catch (error) {
         console.error('데이터 로드 실패:', error);
+        addNotification('⚙️ Google Sheets 연결이 필요합니다.', 'info');
         setShowSetupModal(true);
       }
     } else {
+      addNotification('⚙️ Google Sheets 연결 설정이 필요합니다.', 'info');
       setShowSetupModal(true);
     }
   };
