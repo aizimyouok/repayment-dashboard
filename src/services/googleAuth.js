@@ -1,6 +1,8 @@
+import { GOOGLE_CONFIG } from '../config/google.js';
+
 export class GoogleAuth {
   constructor() {
-    this.clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    this.clientId = GOOGLE_CONFIG.CLIENT_ID;
     this.isInitialized = false;
     this.currentUser = null;
   }
