@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { Search, Eye, LogOut, Sync, Bell, DollarSign, CheckCircle, Clock, Target } from 'lucide-react';
+import { Search, Eye, LogOut, RefreshCw, Bell, DollarSign, CheckCircle, Clock, Target } from 'lucide-react';
 import GoogleLogin from './components/GoogleLogin';
 import { googleAuth } from './services/googleAuth';
 import { googleSheets } from './services/googleSheets';
@@ -359,7 +359,7 @@ function App() {
                 disabled={isSyncing}
                 className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
               >
-                <Sync className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
                 {isSyncing ? '동기화 중...' : '데이터 동기화'}
               </button>
               
