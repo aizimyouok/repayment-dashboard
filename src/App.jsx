@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 // --- 설정: 이 부분을 필요에 맞게 수정하세요. ---
 
 // ⚠️ 1단계에서 배포하고 복사한 Apps Script 웹 앱 URL을 여기에 붙여넣으세요.
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbykFLX24cpvcxfzzQvAbH-OEFFuImpMdXxFM4srMXEmb3PAFL-KBbjOwPgY8VbXNSjx/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby0P-2aKR4yFpStW3ackwJCFhDf4kT2dlxgJwUIB4cvNc1lK0IKHNdoNbM0-ZWQYaUk/exec";
 
 // 🔒 여기에 로그인 및 권한을 부여할 Google 계정 이메일을 등록합니다.
 const anthorizedUsers = {
