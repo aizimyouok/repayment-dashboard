@@ -13,9 +13,11 @@ class GoogleSheetsDataService {
     // 3. localStorage에서 가져오기
     // 4. 기본값 사용
     this.SHEET_ID = this.getSheetId();
+    this.GID = '1799048710'; // 특정 시트 탭 ID
+    
     // Published sheet의 경우 다른 URL 형식 사용
     if (this.SHEET_ID.startsWith('2PACX-')) {
-      this.CSV_URL = `https://docs.google.com/spreadsheets/d/e/${this.SHEET_ID}/pub?output=csv`;
+      this.CSV_URL = `https://docs.google.com/spreadsheets/d/e/${this.SHEET_ID}/pub?gid=${this.GID}&single=true&output=csv`;
     } else {
       this.CSV_URL = `https://docs.google.com/spreadsheets/d/${this.SHEET_ID}/export?format=csv&gid=0`;
     }
@@ -471,11 +473,25 @@ class GoogleSheetsDataService {
   /**
    * 시트 ID 설정 및 저장
    * @param {string} sheetId - Google Sheets ID
+   * @param {string} gid - 시트 탭 ID (선택사항)
    */
-  setSheetId(sheetId) {
+  setSheetId(sheetId, gid = null) {
     this.SHEET_ID = sheetId;
-    this.CSV_URL = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
+    if (gid) {
+      this.GID = gid;
+    }
+    
+    // Published sheet의 경우 다른 URL 형식 사용
+    if (this.SHEET_ID.startsWith('2PACX-')) {
+      this.CSV_URL = `https://docs.google.com/spreadsheets/d/e/${this.SHEET_ID}/pub?gid=${this.GID}&single=true&output=csv`;
+    } else {
+      this.CSV_URL = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
+    }
+    
     localStorage.setItem('sheetId', sheetId); // 자동 저장
+    if (gid) {
+      localStorage.setItem('sheetGid', gid);
+    }
     console.log('✅ Google Sheets ID 설정 및 저장 완료:', sheetId);
   }
 
