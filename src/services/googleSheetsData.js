@@ -13,7 +13,12 @@ class GoogleSheetsDataService {
     // 3. localStorage에서 가져오기
     // 4. 기본값 사용
     this.SHEET_ID = this.getSheetId();
-    this.CSV_URL = `https://docs.google.com/spreadsheets/d/${this.SHEET_ID}/export?format=csv&gid=0`;
+    // Published sheet의 경우 다른 URL 형식 사용
+    if (this.SHEET_ID.startsWith('2PACX-')) {
+      this.CSV_URL = `https://docs.google.com/spreadsheets/d/e/${this.SHEET_ID}/pub?output=csv`;
+    } else {
+      this.CSV_URL = `https://docs.google.com/spreadsheets/d/${this.SHEET_ID}/export?format=csv&gid=0`;
+    }
     
     // Google Forms 링크들 (나중에 설정 예정)
     this.FORMS = {
