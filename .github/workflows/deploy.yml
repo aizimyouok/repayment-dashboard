@@ -1,0 +1,25 @@
+# .github/workflows/deploy.yml
+
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main # main 브랜치에 코드가 올라올 때마다 실행됩니다.
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest # 작업은 우분투 환경에서 실행됩니다.
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v3 # 코드를 가져옵니다.
+
+      - name: Install and Build 🔧
+        run: |
+          npm install       # package.json 파일에 있는 부품들을 설치합니다.
+          npm run build     # 웹사이트용 파일로 변환합니다.
+
+      - name: Deploy 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist # 빌드 결과물이 있는 dist 폴더를 배포합니다.
