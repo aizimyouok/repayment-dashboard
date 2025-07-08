@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { Search, Eye, LogOut, RefreshCw, Bell, DollarSign, CheckCircle, Clock, Target, Plus, Edit, Trash2, Settings, AlertTriangle } from 'lucide-react';
+import { Search, LogOut, RefreshCw, DollarSign, CheckCircle, Clock, Target, Plus, Edit, Trash2 } from 'lucide-react';
 import GoogleLogin from './components/GoogleLogin';
 import { googleAuth } from './services/googleAuth';
 import googleSheetsDataService from './services/googleSheetsData';
-import { formatCurrency, formatPercent, maskSSN, getStatusClass, calculateDday } from './utils/formatters';
+import { formatCurrency, formatPercent, getStatusClass } from './utils/formatters';
 
 // --- Main App Component ---
 function App() {
@@ -44,6 +44,7 @@ function App() {
       addNotification('✅ 실시간 데이터 동기화 완료!', 'success');
     } catch (error) {
       console.error('동기화 실패:', error);
+      setDashboardData(null); // 실패 시 데이터 초기화
       addNotification(`❌ 데이터 동기화 실패: ${error.message}`, 'error');
     } finally {
       setIsSyncing(false);
@@ -101,11 +102,11 @@ function App() {
   };
   
   // 삭제 핸들러
-  const handleDelete = async (id) => {
-    if (window.confirm(`정말로 ID [${id}] 데이터를 삭제하시겠습니까?`)) {
+  const handleDelete = async (person) => {
+    if (window.confirm(`정말로 '${person.name}'님의 데이터를 삭제하시겠습니까?`)) {
       setIsSyncing(true);
       try {
-        const result = await googleSheetsDataService.postData('DELETE', { id });
+        const result = await googleSheetsDataService.postData('DELETE', { id: person.ID });
         addNotification(`✅ ${result.message}`, 'success');
         await syncData();
       } catch (error) {
@@ -129,20 +130,18 @@ function App() {
   const filteredIndividuals = useMemo(() => {
     if (!dashboardData) return [];
     return dashboardData.individuals.filter(p => 
-      (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.phone.includes(searchTerm)) &&
+      (p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || p.연락처?.includes(searchTerm)) &&
       (statusFilter === '전체' || p.status === statusFilter)
     );
   }, [dashboardData, searchTerm, statusFilter]);
 
   // 로딩 화면
-  if (isLoading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">...시스템 초기화 중...</div>;
+  if (isLoading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
 
   // 로그인 화면
   if (!user) return <GoogleLogin onLoginSuccess={handleLoginSuccess} />;
-
-  // 데이터 로딩 중 화면
-  if (!dashboardData && isSyncing) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">...환수 데이터 불러오는 중...</div>;
-
+  
+  // --- Main App Component ---
   return (
     <div className="min-h-screen bg-gray-50">
       <NotificationPanel notifications={notifications} />
@@ -174,7 +173,12 @@ function App() {
 
       {/* --- Main Content --- */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {dashboardData && (
+        {!dashboardData ? (
+           <div className="text-center py-10">
+            <p>데이터를 불러오는 중이거나, 로드에 실패했습니다.</p>
+            <p>잠시 후 새로고침 버튼을 눌러주세요.</p>
+           </div>
+        ) : (
           <>
             {/* KPI Cards, Charts, Table */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -212,17 +216,17 @@ function App() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredIndividuals.map((p) => (
-                      <tr key={p.no}>
-                        <td className="px-6 py-4">{p.name}</td>
-                        <td className="px-6 py-4">{p.phone}</td>
-                        <td className="px-6 py-4">{formatCurrency(p.totalAmount)}</td>
-                        <td className="px-6 py-4">{formatCurrency(p.repaidAmount)}</td>
-                        <td className="px-6 py-4">{formatCurrency(p.remainingAmount)}</td>
-                        <td className="px-6 py-4"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(p.status)}`}>{p.status}</span></td>
-                        <td className="px-6 py-4">
+                      <tr key={p.ID}>
+                        <td className="px-6 py-4 whitespace-nowrap">{p.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{p.연락처}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{formatCurrency(p.totalAmount)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-green-600">{formatCurrency(p.repaidAmount)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-red-600">{formatCurrency(p.remainingAmount)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(p.status)}`}>{p.status}</span></td>
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex space-x-2">
-                            {hasPermission('write') && <button onClick={() => openModal(p)} className="text-green-600"><Edit size={16} /></button>}
-                            {hasPermission('delete') && <button onClick={() => handleDelete(p.no)} className="text-red-600"><Trash2 size={16} /></button>}
+                            {hasPermission('write') && <button onClick={() => openModal(p)} className="text-green-600 hover:text-green-800"><Edit size={16} /></button>}
+                            {hasPermission('delete') && <button onClick={() => handleDelete(p)} className="text-red-600 hover:text-red-800"><Trash2 size={16} /></button>}
                           </div>
                         </td>
                       </tr>
@@ -249,8 +253,8 @@ function App() {
 
 // --- Helper Components ---
 const KPICard = ({ title, value, icon: Icon, color }) => (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-    <div className="flex items-center space-x-3">
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all">
+    <div className="flex items-center space-x-4">
       <div className={`p-3 rounded-lg bg-gradient-to-r ${color}`}><Icon className="h-6 w-6 text-white" /></div>
       <div>
         <p className="text-sm font-medium text-gray-600">{title}</p>
@@ -261,10 +265,10 @@ const KPICard = ({ title, value, icon: Icon, color }) => (
 );
 
 const NotificationPanel = ({ notifications }) => (
-  <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+  <div className="fixed top-4 right-4 z-50 w-full max-w-sm space-y-2">
     {notifications.map(n => (
-      <div key={n.id} className={`p-4 rounded-lg shadow-lg border-l-4 ${n.type === 'success' ? 'bg-green-100 border-green-500' : 'bg-red-100 border-red-500'}`}>
-        <p className="text-sm font-medium text-gray-900">{n.message}</p>
+      <div key={n.id} className={`p-4 rounded-lg shadow-lg border-l-4 ${n.type === 'success' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-red-100 border-red-500 text-red-800'}`}>
+        <p className="text-sm font-medium">{n.message}</p>
       </div>
     ))}
   </div>
@@ -273,6 +277,11 @@ const NotificationPanel = ({ notifications }) => (
 // --- Data Edit Modal Component ---
 const DataEditModal = ({ person, onClose, onSave }) => {
   const [formData, setFormData] = useState(person || {});
+
+  useEffect(() => {
+    // 모달이 열릴 때 초기 데이터 설정
+    setFormData(person || {});
+  }, [person]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -283,33 +292,34 @@ const DataEditModal = ({ person, onClose, onSave }) => {
     e.preventDefault();
     onSave(formData);
   };
-
-  const fields = ['차용자', '주민번호', '연락처', '입사일', '퇴사일', '환수요청금액', '상환완료금액'];
+  
+  // Google 시트의 헤더와 일치해야 합니다.
+  const fields = ['대상자', '주민번호', '연락처', '입사일', '퇴사일', '환수요청금액', '상환완료금액', '상환예정일', '비고'];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-lg w-full">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4">
+      <div className="bg-white rounded-lg max-w-2xl w-full">
         <form onSubmit={handleSubmit}>
           <div className="p-6 border-b">
-            <h2 className="text-2xl font-bold">{person ? '정보 수정' : '신규 추가'}</h2>
+            <h2 className="text-2xl font-bold">{person ? `수정: ${person.name}` : '신규 환수 데이터 추가'}</h2>
           </div>
-          <div className="p-6 grid grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
             {fields.map(field => (
               <div key={field}>
-                <label className="block text-sm font-medium text-gray-700">{field}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{field}</label>
                 <input
                   type={field.includes('금액') ? 'number' : field.includes('일') ? 'date' : 'text'}
                   name={field}
                   value={formData[field] || ''}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             ))}
           </div>
-          <div className="p-6 border-t flex justify-end space-x-3">
-            <button type="button" onClick={onClose} className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">취소</button>
-            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg">저장</button>
+          <div className="p-6 border-t flex justify-end space-x-3 bg-gray-50 rounded-b-lg">
+            <button type="button" onClick={onClose} className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">취소</button>
+            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">저장하기</button>
           </div>
         </form>
       </div>
