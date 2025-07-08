@@ -6,8 +6,9 @@
 
 class GoogleSheetsDataService {
   constructor() {
-    // Apps Script 웹 앱 URL (배포 후 설정)
-    this.APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || '';
+    // Apps Script 웹 앱 URL (환경변수 또는 기본값)
+    this.APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || 
+      'https://script.google.com/macros/s/AKfycbykFLX24cpvcxfzzQvAbH-OEFFuImpMdXxFM4srMXEmb3PAFL-KBbjOwPgY8VbXNSjx/exec';
     
     // 기존 CSV 방식도 백업으로 유지
     this.SHEET_ID = this.getSheetId();
