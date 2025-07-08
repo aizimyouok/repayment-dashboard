@@ -1,5 +1,27 @@
 import { GOOGLE_CONFIG } from '../config/google.js';
 
+/**
+ * 🔒 허용된 사용자 및 권한 관리
+ * 여기에 로그인 및 특정 권한을 부여할 Google 계정 이메일을 등록합니다.
+ *
+ * - admin: 모든 데이터 보기, 생성, 수정, 삭제 가능
+ * - manager: 데이터 보기, 생성, 수정 가능
+ * - viewer: 데이터 보기만 가능
+ */
+const anthorizedUsers = {
+  // --- 관리자 (Admin) ---
+  "aizimyouok46@gmail.com": { role: 'admin' },
+  "another-in@gmail.com": { role: 'admin' },
+
+  // --- 팀장 (Manager) ---
+  "cfc240528@gmail.com": { role: 'manager' },
+  "manager2@gmail.com": { role: 'manager' },
+
+  // --- 조회자 (Viewer) ---
+  "viewer@example.com": { role: 'viewer' },
+};
+
+
 export class GoogleAuth {
   constructor() {
     this.clientId = GOOGLE_CONFIG.CLIENT_ID;
@@ -32,26 +54,21 @@ export class GoogleAuth {
   handleCredentialResponse(response) {
     try {
       const decoded = JSON.parse(atob(response.credential.split('.')[1]));
+      const userEmail = decoded.email;
 
-      // ⚠️ 중요: 이 부분은 모든 구글 사용자가 로그인할 수 있도록 허용합니다.
-      // 특정 사용자만 허용하려면 아래 주석처리된 코드를 활용하세요.
-      /*
-      const allowedDomains = ['yourcompany.com'];
-      const allowedEmails = ['admin@gmail.com'];
-      const userDomain = decoded.email.split('@')[1];
-      if (!allowedDomains.includes(userDomain) && !allowedEmails.includes(decoded.email)) {
-        throw new Error('허가되지 않은 계정입니다.');
+      // ⚠️ 중요: 허용된 사용자인지 확인
+      const authorizedUser = anthorizedUsers[userEmail];
+      if (!authorizedUser) {
+        // 목록에 없는 이메일이면 에러를 발생시켜 로그인 차단
+        throw new Error(`접근 권한이 없습니다. 관리자에게 문의하세요. (${userEmail})`);
       }
-      */
-      
+
       this.currentUser = {
         id: decoded.sub,
-        email: decoded.email,
+        email: userEmail,
         name: decoded.name,
         picture: decoded.picture,
-        // 모든 사용자는 기본적으로 'viewer' 권한을 가집니다.
-        // 특정 이메일에 따라 권한을 다르게 하려면 determineUserRole 함수를 수정하세요.
-        role: this.determineUserRole(decoded.email)
+        role: authorizedUser.role, // 등록된 권한 부여
       };
 
       localStorage.setItem('user', JSON.stringify(this.currentUser));
@@ -59,26 +76,14 @@ export class GoogleAuth {
 
     } catch (error) {
       console.error('Login failed:', error);
+      alert(error.message); // 사용자에게 직접 에러 메시지 표시
       window.dispatchEvent(new CustomEvent('googleLoginError', { detail: error.message }));
     }
   }
 
-  /**
-   * 이메일 주소에 따라 사용자 역할을 결정합니다.
-   * 필요에 따라 이 부분을 수정하여 권한을 관리하세요.
-   */
-  determineUserRole(email) {
-    // 예시: 특정 이메일은 'admin' 권한 부여
-    if (email === 'your-admin-email@example.com') {
-      return 'admin';
-    }
-    // 기본 권한은 'viewer'
-    return 'viewer';
-  }
-
   renderSignInButton(elementId) {
     if (document.getElementById(elementId)) {
-        window.google.accounts.id.renderButton(
+      window.google.accounts.id.renderButton(
         document.getElementById(elementId),
         { theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular' }
       );
