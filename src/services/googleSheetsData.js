@@ -6,16 +6,13 @@
 
 class GoogleSheetsDataService {
   constructor() {
-    // 기본 시트 ID 설정 (실제 사용할 시트 ID로 변경하세요)
-    // 여러 방법으로 시트 ID 설정 가능:
-    // 1. 환경변수에서 가져오기
-    // 2. URL 파라미터에서 가져오기  
-    // 3. localStorage에서 가져오기
-    // 4. 기본값 사용
-    this.SHEET_ID = this.getSheetId();
-    this.GID = '1799048710'; // 특정 시트 탭 ID
+    // Apps Script 웹 앱 URL (배포 후 설정)
+    this.APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || '';
     
-    // Published sheet의 경우 다른 URL 형식 사용
+    // 기존 CSV 방식도 백업으로 유지
+    this.SHEET_ID = this.getSheetId();
+    this.GID = '1799048710';
+    
     if (this.SHEET_ID.startsWith('2PACX-')) {
       this.CSV_URL = `https://docs.google.com/spreadsheets/d/e/${this.SHEET_ID}/pub?gid=${this.GID}&single=true&output=csv`;
     } else {
@@ -31,21 +28,32 @@ class GoogleSheetsDataService {
   }
 
   /**
-   * Google Sheets에서 CSV 데이터를 가져옵니다
+   * Google Apps Script 또는 CSV에서 데이터를 가져옵니다
    * @returns {Promise<Array>} 파싱된 데이터 배열
    */
   async fetchData() {
+    // Apps Script URL이 설정되어 있으면 우선 사용
+    if (this.APPS_SCRIPT_URL && this.APPS_SCRIPT_URL !== '') {
+      return this.fetchFromAppsScript();
+    } else {
+      console.log('⚠️ Apps Script URL이 설정되지 않아 CSV 방식을 사용합니다.');
+      return this.fetchFromCSV();
+    }
+  }
+
+  /**
+   * Google Apps Script에서 JSON 데이터를 가져옵니다
+   * @returns {Promise<Array>} 파싱된 데이터 배열
+   */
+  async fetchFromAppsScript() {
     try {
-      console.log('🔄 Google Sheets에서 데이터를 가져오는 중...');
-      console.log('📍 시트 ID:', this.SHEET_ID);
-      console.log('📍 GID:', this.GID);
-      console.log('📍 사용 중인 URL:', this.CSV_URL);
+      console.log('🚀 Google Apps Script에서 데이터를 가져오는 중...');
+      console.log('📍 Apps Script URL:', this.APPS_SCRIPT_URL);
       
-      const response = await fetch(this.CSV_URL, {
+      const response = await fetch(this.APPS_SCRIPT_URL, {
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache',
-          'Accept': 'text/csv; charset=utf-8',
         },
       });
 
@@ -56,27 +64,58 @@ class GoogleSheetsDataService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // UTF-8로 텍스트 읽기
-      const csvText = await response.text();
-      console.log('📄 받은 CSV 텍스트 길이:', csvText.length);
+      const jsonData = await response.json();
+      console.log('✅ Apps Script 응답:', jsonData);
+
+      if (!jsonData.success) {
+        throw new Error(jsonData.message || 'Apps Script에서 오류가 발생했습니다.');
+      }
+
+      console.log(`🎯 Apps Script에서 ${jsonData.data.length}개 레코드 가져옴`);
       
-      // BOM 제거 (UTF-8 BOM: \uFEFF)
+      // Apps Script에서 이미 표준화된 데이터를 받으므로 바로 반환
+      return jsonData.data;
+      
+    } catch (error) {
+      console.error('❌ Google Apps Script 데이터 가져오기 실패:', error);
+      console.log('🔄 CSV 방식으로 대체합니다...');
+      
+      // Apps Script 실패 시 CSV 방식으로 폴백
+      return this.fetchFromCSV();
+    }
+  }
+
+  /**
+   * CSV에서 데이터를 가져옵니다 (백업 방식)
+   * @returns {Promise<Array>} 파싱된 데이터 배열
+   */
+  async fetchFromCSV() {
+    try {
+      console.log('📄 CSV에서 데이터를 가져오는 중...');
+      console.log('📍 CSV URL:', this.CSV_URL);
+      
+      const response = await fetch(this.CSV_URL, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Accept': 'text/csv; charset=utf-8',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const csvText = await response.text();
       const cleanedCsvText = csvText.replace(/^\uFEFF/, '');
       
       console.log('✅ CSV 데이터 가져오기 성공');
-      console.log('📝 첫 200자:', cleanedCsvText.substring(0, 200));
       
       const parsedData = this.parseCSV(cleanedCsvText);
-      console.log('🎯 파싱된 데이터 개수:', parsedData.length);
-      
       return parsedData;
-    } catch (error) {
-      console.error('❌ Google Sheets 데이터 가져오기 실패:', error);
-      console.error('❌ 오류 타입:', error.name);
-      console.error('❌ 오류 메시지:', error.message);
-      console.error('❌ 사용했던 URL:', this.CSV_URL);
       
-      // 오류 시 더미 데이터 반환 (개발/테스트용)
+    } catch (error) {
+      console.error('❌ CSV 데이터 가져오기 실패:', error);
       console.log('🔄 더미 데이터로 대체합니다...');
       return this.getDummyData();
     }
@@ -96,16 +135,45 @@ class GoogleSheetsDataService {
       return [];
     }
 
-    // 헤더 행 파싱 (컬럼명)
-    const headers = this.parseCSVLine(lines[0]);
-    console.log('📋 CSV 헤더:', headers);
+    // 실제 헤더 행 찾기 (NO, 번호, ID, 대상자 등이 포함된 행)
+    let headerRowIndex = -1;
+    let headers = [];
+    
+    for (let i = 0; i < Math.min(10, lines.length); i++) { // 처음 10줄 내에서 헤더 찾기
+      const potentialHeaders = this.parseCSVLine(lines[i]);
+      console.log(`🔍 ${i}번째 줄 확인:`, potentialHeaders);
+      
+      // 헤더로 보이는 키워드들 체크
+      const headerKeywords = ['NO', '번호', 'ID', '대상자', '차용자', '이름', '성명', '금액', '대출', '환수', '요청'];
+      const hasHeaderKeywords = potentialHeaders.some(header => 
+        headerKeywords.some(keyword => header.includes(keyword))
+      );
+      
+      if (hasHeaderKeywords && potentialHeaders.length > 3) { // 3개 이상의 컬럼이 있고 헤더 키워드를 포함
+        headerRowIndex = i;
+        headers = potentialHeaders;
+        console.log(`✅ ${i}번째 줄을 헤더로 선택:`, headers);
+        break;
+      }
+    }
 
-    // 데이터 행들 파싱
+    // 헤더를 찾지 못한 경우 첫 번째 줄을 헤더로 사용
+    if (headerRowIndex === -1) {
+      console.warn('⚠️ 헤더 행을 찾을 수 없어 첫 번째 줄을 헤더로 사용');
+      headerRowIndex = 0;
+      headers = this.parseCSVLine(lines[0]);
+    }
+
+    console.log('📋 최종 헤더 개수:', headers.length);
+    console.log('📋 최종 헤더 목록:', headers);
+    console.log('📋 최종 헤더 상세:', JSON.stringify(headers, null, 2));
+
+    // 헤더 다음 줄부터 데이터 파싱
     const data = [];
-    for (let i = 1; i < lines.length; i++) {
+    for (let i = headerRowIndex + 1; i < lines.length; i++) {
       const values = this.parseCSVLine(lines[i]);
       
-      if (values.length > 0 && values[0]) { // 빈 행 제외
+      if (values.length > 0 && values[0] && values[0].trim()) { // 빈 행 제외
         const record = {};
         headers.forEach((header, index) => {
           // 헤더와 값 모두 trim 처리
@@ -119,7 +187,8 @@ class GoogleSheetsDataService {
 
     console.log(`✅ ${data.length}개의 레코드 파싱 완료`);
     if (data.length > 0) {
-      console.log('📄 첫 번째 레코드 샘플:', data[0]);
+      console.log('📄 첫 번째 레코드 샘플:', JSON.stringify(data[0], null, 2));
+      console.log('📄 첫 번째 레코드 키들:', Object.keys(data[0]));
     }
     return data;
   }
@@ -160,7 +229,7 @@ class GoogleSheetsDataService {
 
   /**
    * 데이터를 대시보드에서 사용할 수 있는 형태로 변환합니다
-   * @param {Array} rawData - 원시 CSV 데이터
+   * @param {Array} rawData - 원시 데이터 (Apps Script 또는 CSV)
    * @returns {Object} 변환된 대시보드 데이터
    */
   transformDataForDashboard(rawData) {
@@ -168,30 +237,98 @@ class GoogleSheetsDataService {
       return this.getEmptyDashboardData();
     }
 
-    const transformedData = rawData.map((record, index) => {
-      // 날짜 필드들 처리
-      const loanDate = this.parseDate(record['대출일'] || record['대출_일자'] || '');
-      const repaymentDate = this.parseDate(record['상환예정일'] || record['상환_예정일'] || '');
-      
-      // 금액 필드들 처리
-      const loanAmount = this.parseAmount(record['대출금액'] || record['대출_금액'] || '0');
-      const remainingAmount = this.parseAmount(record['잔여금액'] || record['잔여_금액'] || '0');
-      
-      return {
-        id: record['ID'] || `record_${index + 1}`,
-        borrowerName: record['차용자'] || record['차용자명'] || `익명${index + 1}`,
-        loanAmount: loanAmount,
-        remainingAmount: remainingAmount,
-        repaidAmount: loanAmount - remainingAmount,
-        loanDate: loanDate,
-        repaymentDate: repaymentDate,
-        daysUntilRepayment: this.calculateDaysUntil(repaymentDate),
-        status: this.calculateStatus(repaymentDate, remainingAmount),
-        note: record['비고'] || record['메모'] || '',
-        // 원본 데이터도 보관 (디버깅용)
-        _original: record
-      };
-    });
+    console.log('🔧 대시보드 데이터 변환 시작...');
+
+    let transformedData = [];
+
+    // Apps Script에서 온 데이터인지 확인 (이미 표준화됨)
+    if (rawData[0] && rawData[0].borrowerName !== undefined) {
+      console.log('✅ Apps Script 표준화된 데이터 사용');
+      transformedData = rawData.map((record, index) => ({
+        id: record.id || `record_${index + 1}`,
+        borrowerName: record.borrowerName || `대상자${index + 1}`,
+        loanAmount: record.loanAmount || 0,
+        remainingAmount: record.remainingAmount || 0,
+        repaidAmount: record.repaidAmount || 0,
+        loanDate: record.loanDate ? new Date(record.loanDate) : null,
+        repaymentDate: record.repaymentDate ? new Date(record.repaymentDate) : null,
+        daysUntilRepayment: record.daysUntilRepayment,
+        status: record.status || '미정',
+        note: record.note || '',
+        _original: record.original || record
+      }));
+    } else {
+      console.log('📄 CSV 데이터 복잡 변환 수행');
+      console.log('🔧 원시 데이터 샘플:', JSON.stringify(rawData[0], null, 2));
+
+      transformedData = rawData.map((record, index) => {
+        // 다양한 컬럼명 패턴으로 데이터 추출
+        const possibleIdFields = ['ID', '번호', 'NO', 'No', '순번'];
+        const possibleNameFields = ['차용자', '차용자명', '대상자', '이름', '성명', '성명(실명)', '실명'];
+        const possibleLoanAmountFields = ['대출금액', '대출_금액', '환수요청금액', '요청금액', '총금액', '원금'];
+        const possibleRemainingFields = ['잔여금액', '잔여_금액', '미상환금액', '남은금액', '잔액'];
+        const possibleLoanDateFields = ['대출일', '대출_일자', '시작일', '계약일'];
+        const possibleRepaymentDateFields = ['상환예정일', '상환_예정일', '만료일', '종료일'];
+
+        // 실제 값 찾기 함수
+        const findValue = (fields) => {
+          for (const field of fields) {
+            if (record[field] && record[field].toString().trim()) {
+              return record[field].toString().trim();
+            }
+          }
+          return '';
+        };
+
+        // 숫자만 포함된 값 찾기 (금액용)
+        const findNumericValue = (fields) => {
+          for (const field of fields) {
+            if (record[field]) {
+              const value = record[field].toString().replace(/[^\d.-]/g, '');
+              if (value && !isNaN(parseFloat(value))) {
+                return value;
+              }
+            }
+          }
+          return '0';
+        };
+
+        // 날짜 필드들 처리
+        const loanDate = this.parseDate(findValue(possibleLoanDateFields));
+        const repaymentDate = this.parseDate(findValue(possibleRepaymentDateFields));
+        
+        // 금액 필드들 처리
+        const loanAmount = this.parseAmount(findNumericValue(possibleLoanAmountFields));
+        const remainingAmount = this.parseAmount(findNumericValue(possibleRemainingFields));
+        
+        // ID와 이름 추출
+        const id = findValue(possibleIdFields) || `record_${index + 1}`;
+        const borrowerName = findValue(possibleNameFields) || `대상자${index + 1}`;
+
+        return {
+          id: id,
+          borrowerName: borrowerName,
+          loanAmount: loanAmount,
+          remainingAmount: remainingAmount,
+          repaidAmount: Math.max(0, loanAmount - remainingAmount),
+          loanDate: loanDate,
+          repaymentDate: repaymentDate,
+          daysUntilRepayment: this.calculateDaysUntil(repaymentDate),
+          status: this.calculateStatus(repaymentDate, remainingAmount),
+          note: record['비고'] || record['메모'] || record['특이사항'] || '',
+          _original: record
+        };
+      });
+
+      // 유효한 데이터만 필터링 (이름이나 금액이 있는 것)
+      transformedData = transformedData.filter(item => 
+        item.borrowerName !== `대상자${transformedData.indexOf(item) + 1}` || 
+        item.loanAmount > 0 || 
+        item.remainingAmount > 0
+      );
+    }
+
+    console.log(`🔧 최종 유효한 데이터: ${transformedData.length}개`);
 
     // 대시보드 통계 계산
     const statistics = this.calculateStatistics(transformedData);
