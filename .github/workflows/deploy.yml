@@ -1,23 +1,32 @@
-# .github/workflows/deploy.yml
-
-name: Build and Deploy
+name: Build and Deploy to GitHub Pages
 
 on:
   push:
     branches:
       - main # main 브랜치에 코드가 올라올 때마다 실행됩니다.
 
+# ⭐️ 중요: 작업에 필요한 권한을 부여합니다.
+permissions:
+  contents: write # 저장소에 글을 쓸 수 있는 권한 (배포에 필수)
+
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest # 작업은 우분투 환경에서 실행됩니다.
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout 🛎️
-        uses: actions/checkout@v3 # 코드를 가져옵니다.
+        uses: actions/checkout@v4 # 코드를 가져옵니다.
 
-      - name: Install and Build 🔧
-        run: |
-          npm install       # package.json 파일에 있는 부품들을 설치합니다.
-          npm run build     # 웹사이트용 파일로 변환합니다.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # Node.js 버전 설정
+          cache: 'npm'
+
+      - name: Install Dependencies 🔧
+        run: npm install # package.json 파일에 있는 부품들을 설치합니다.
+
+      - name: Build Application 🔨
+        run: npm run build # 웹사이트용 파일로 변환합니다.
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
