@@ -37,11 +37,13 @@ class GoogleSheetsDataService {
   async fetchData() {
     try {
       console.log('🔄 Google Sheets에서 데이터를 가져오는 중...');
+      console.log('📍 사용 중인 URL:', this.CSV_URL);
       
       const response = await fetch(this.CSV_URL, {
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache',
+          'Accept': 'text/csv; charset=utf-8',
         },
       });
 
@@ -49,10 +51,16 @@ class GoogleSheetsDataService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
+      // UTF-8로 텍스트 읽기
       const csvText = await response.text();
-      console.log('✅ CSV 데이터 가져오기 성공');
       
-      return this.parseCSV(csvText);
+      // BOM 제거 (UTF-8 BOM: \uFEFF)
+      const cleanedCsvText = csvText.replace(/^\uFEFF/, '');
+      
+      console.log('✅ CSV 데이터 가져오기 성공');
+      console.log('📝 첫 200자:', cleanedCsvText.substring(0, 200));
+      
+      return this.parseCSV(cleanedCsvText);
     } catch (error) {
       console.error('❌ Google Sheets 데이터 가져오기 실패:', error);
       
@@ -67,6 +75,7 @@ class GoogleSheetsDataService {
    * @returns {Array} 파싱된 데이터 배열
    */
   parseCSV(csvText) {
+    console.log('🔍 CSV 파싱 시작...');
     const lines = csvText.trim().split('\n');
     
     if (lines.length < 2) {
@@ -86,13 +95,19 @@ class GoogleSheetsDataService {
       if (values.length > 0 && values[0]) { // 빈 행 제외
         const record = {};
         headers.forEach((header, index) => {
-          record[header] = values[index] || '';
+          // 헤더와 값 모두 trim 처리
+          const cleanHeader = header.trim();
+          const cleanValue = values[index] ? values[index].trim() : '';
+          record[cleanHeader] = cleanValue;
         });
         data.push(record);
       }
     }
 
     console.log(`✅ ${data.length}개의 레코드 파싱 완료`);
+    if (data.length > 0) {
+      console.log('📄 첫 번째 레코드 샘플:', data[0]);
+    }
     return data;
   }
 
@@ -106,6 +121,7 @@ class GoogleSheetsDataService {
     let current = '';
     let inQuotes = false;
     
+    // 각 문자를 순회하면서 파싱
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
       
@@ -124,6 +140,7 @@ class GoogleSheetsDataService {
       }
     }
     
+    // 마지막 필드 추가
     result.push(current.trim());
     return result;
   }
