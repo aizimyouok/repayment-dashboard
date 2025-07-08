@@ -24,9 +24,9 @@ class GoogleSheetsDataService {
     
     // Google Forms 링크들 (나중에 설정 예정)
     this.FORMS = {
-      ADD: process.env.VITE_GOOGLE_FORM_ADD_URL || '',
-      EDIT: process.env.VITE_GOOGLE_FORM_EDIT_URL || '',
-      DELETE: process.env.VITE_GOOGLE_FORM_DELETE_URL || ''
+      ADD: import.meta.env.VITE_GOOGLE_FORM_ADD_URL || '',
+      EDIT: import.meta.env.VITE_GOOGLE_FORM_EDIT_URL || '',
+      DELETE: import.meta.env.VITE_GOOGLE_FORM_DELETE_URL || ''
     };
   }
 
@@ -37,6 +37,8 @@ class GoogleSheetsDataService {
   async fetchData() {
     try {
       console.log('🔄 Google Sheets에서 데이터를 가져오는 중...');
+      console.log('📍 시트 ID:', this.SHEET_ID);
+      console.log('📍 GID:', this.GID);
       console.log('📍 사용 중인 URL:', this.CSV_URL);
       
       const response = await fetch(this.CSV_URL, {
@@ -47,12 +49,16 @@ class GoogleSheetsDataService {
         },
       });
 
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       // UTF-8로 텍스트 읽기
       const csvText = await response.text();
+      console.log('📄 받은 CSV 텍스트 길이:', csvText.length);
       
       // BOM 제거 (UTF-8 BOM: \uFEFF)
       const cleanedCsvText = csvText.replace(/^\uFEFF/, '');
@@ -60,11 +66,18 @@ class GoogleSheetsDataService {
       console.log('✅ CSV 데이터 가져오기 성공');
       console.log('📝 첫 200자:', cleanedCsvText.substring(0, 200));
       
-      return this.parseCSV(cleanedCsvText);
+      const parsedData = this.parseCSV(cleanedCsvText);
+      console.log('🎯 파싱된 데이터 개수:', parsedData.length);
+      
+      return parsedData;
     } catch (error) {
       console.error('❌ Google Sheets 데이터 가져오기 실패:', error);
+      console.error('❌ 오류 타입:', error.name);
+      console.error('❌ 오류 메시지:', error.message);
+      console.error('❌ 사용했던 URL:', this.CSV_URL);
       
       // 오류 시 더미 데이터 반환 (개발/테스트용)
+      console.log('🔄 더미 데이터로 대체합니다...');
       return this.getDummyData();
     }
   }
